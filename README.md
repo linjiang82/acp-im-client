@@ -10,6 +10,15 @@ A middleware bridge that connects popular Instant Messaging (IM) platforms with 
 - **Live Shell Output**: Forwards standard output and terminal logs from the agent directly to the chat.
 - **Resilient Protocol**: Robust JSON-RPC 2.0 implementation with resilient stream parsing.
 - **Smart Message Splitting**: Automatically handles platform-specific character limits (e.g., Discord's 2000-character limit).
+- **Session Management**: Manage multiple conversation contexts via slash commands.
+
+## Slash Commands
+
+You can control your sessions directly from the chat using the `/session` command:
+
+- **`/session new`**: Starts a completely fresh conversation with a new ACP session ID. (Default if no subcommand is provided).
+- **`/session ls`**: Lists all active sessions created during the current process. The current active session for the channel is marked with a ✅.
+- **`/session use <index>`**: Switches the current channel to the specified session index (e.g., `/session use 0`).
 
 ## Prerequisites
 
