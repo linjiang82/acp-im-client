@@ -180,13 +180,58 @@ async function main() {
     
     // 5.1 Handle Slash Commands
     const triggerText = context.text.trim().toLowerCase();
-    if (triggerText === '/session') {
-      logger.info({ platform: context.platform, channelId: context.channelId }, 'Resetting session via slash command');
-      sessionManager.removeSession(context.platform, context.channelId);
-      
+    if (triggerText.startsWith('/session')) {
+      const parts = triggerText.split(' ');
+      const subcommand = parts[1] || 'new'; // default to new if just /session
       const adapter = adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
+
+      if (subcommand === 'new') {
+        logger.info({ platform: context.platform, channelId: context.channelId }, 'Starting new session');
+        const sessionId = await sessionManager.createNewSessionForContext(context);
+        if (adapter) {
+          await adapter.sendReply(context, `✨ *New session started.* ID: \`${sessionId}\``);
+        }
+        return;
+      }
+
+      if (subcommand === 'ls' || subcommand === 'list') {
+        const sessions = await sessionManager.listAllSessions();
+        if (adapter) {
+          if (sessions.length === 0) {
+            await adapter.sendReply(context, '📂 *No active sessions found.*');
+          } else {
+            const list = sessions.map((id, index) => {
+              const ctx = sessionManager.getContextForSession(id);
+              const info = ctx ? ` (${ctx.platform})` : '';
+              return `${index}. \`${id}\`${info}`;
+            }).join('\n');
+            await adapter.sendReply(context, `📂 *Active Sessions:*\n${list}\n\nUse \`/session use <number>\` to switch.`);
+          }
+        }
+        return;
+      }
+
+      if (subcommand === 'use' || subcommand === 'switch') {
+        const index = parseInt(parts[2] || '');
+        if (isNaN(index)) {
+          if (adapter) await adapter.sendReply(context, '❌ *Please provide a session number.* Example: `/session use 0`');
+          return;
+        }
+
+        const sessionId = sessionManager.switchSession(context, index);
+        if (adapter) {
+          if (sessionId) {
+            await adapter.sendReply(context, `🔄 *Switched to session ${index}:* \`${sessionId}\``);
+          } else {
+            await adapter.sendReply(context, `❌ *Invalid session number:* ${index}. Use \`/session ls\` to see available sessions.`);
+          }
+        }
+        return;
+      }
+
+      // If command not recognized
       if (adapter) {
-        await adapter.sendReply(context, '✨ *Session reset.* The next message will start a fresh conversation.');
+        await adapter.sendReply(context, '❓ *Unknown subcommand.* Available: `new`, `ls`, `use <n>`');
       }
       return;
     }

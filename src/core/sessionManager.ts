@@ -11,28 +11,64 @@ const logger = pino({
 export class SessionManager {
   private client: AcpClient;
   // Maps platform:contextId -> sessionId
-  private sessions: Map<string, string>;
+  private channelToSession: Map<string, string>;
   // Maps sessionId -> context
   private sessionToContext: Map<string, MessageContext>;
+  // List of all unique session IDs seen in this process, for indexing
+  private sessionRegistry: string[];
 
   constructor(client: AcpClient) {
     this.client = client;
-    this.sessions = new Map();
+    this.channelToSession = new Map();
     this.sessionToContext = new Map();
+    this.sessionRegistry = [];
   }
 
   public async getSessionForContext(context: MessageContext): Promise<string> {
     const key = `${context.platform}:${context.channelId}`;
-    let sessionId = this.sessions.get(key);
+    let sessionId = this.channelToSession.get(key);
 
     if (!sessionId) {
       logger.info(`Creating new session for ${key}`);
       const response = await this.client.newSession(process.env.GEMINI_CWD || process.cwd());
       sessionId = response.sessionId;
-      this.sessions.set(key, sessionId);
+      this.registerSession(sessionId, context);
+      this.channelToSession.set(key, sessionId);
     }
 
+    return sessionId;
+  }
+
+  private registerSession(sessionId: string, context: MessageContext) {
+    if (!this.sessionRegistry.includes(sessionId)) {
+      this.sessionRegistry.push(sessionId);
+    }
     this.sessionToContext.set(sessionId, context);
+  }
+
+  public async createNewSessionForContext(context: MessageContext): Promise<string> {
+    const key = `${context.platform}:${context.channelId}`;
+    const response = await this.client.newSession(process.env.GEMINI_CWD || process.cwd());
+    const sessionId = response.sessionId;
+    this.registerSession(sessionId, context);
+    this.channelToSession.set(key, sessionId);
+    return sessionId;
+  }
+
+  public async listAllSessions(): Promise<string[]> {
+    // Return the registry (which may grow as we interact)
+    return this.sessionRegistry;
+  }
+
+  public switchSession(context: MessageContext, index: number): string | null {
+    if (index < 0 || index >= this.sessionRegistry.length) {
+      return null;
+    }
+    const sessionId = this.sessionRegistry[index];
+    if (!sessionId) return null;
+    
+    const key = `${context.platform}:${context.channelId}`;
+    this.channelToSession.set(key, sessionId);
     return sessionId;
   }
 
@@ -42,10 +78,11 @@ export class SessionManager {
 
   public removeSession(platform: string, contextId: string): void {
     const key = `${platform}:${contextId}`;
-    const sessionId = this.sessions.get(key);
+    const sessionId = this.channelToSession.get(key);
     if (sessionId) {
+      // We don't remove from registry to keep indices stable
       this.sessionToContext.delete(sessionId);
     }
-    this.sessions.delete(key);
+    this.channelToSession.delete(key);
   }
 }

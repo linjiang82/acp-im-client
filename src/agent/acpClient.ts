@@ -192,6 +192,14 @@ export class AcpClient extends EventEmitter {
     });
   }
 
+  public async listSessions(): Promise<{ sessions: any[] }> {
+    return this.request('session/list', {});
+  }
+
+  public async loadSession(sessionId: string): Promise<any> {
+    return this.request('session/load', { sessionId });
+  }
+
   public cancel(sessionId: string): void {
     this.notify('session/cancel', { sessionId });
   }
