@@ -196,6 +196,8 @@ async function main() {
 
       if (subcommand === 'ls' || subcommand === 'list') {
         const sessions = await sessionManager.listAllSessions();
+        const currentId = sessionManager.getCurrentSessionId(context.platform, context.channelId);
+        
         if (adapter) {
           if (sessions.length === 0) {
             await adapter.sendReply(context, '📂 *No active sessions found.*');
@@ -203,7 +205,8 @@ async function main() {
             const list = sessions.map((id, index) => {
               const ctx = sessionManager.getContextForSession(id);
               const info = ctx ? ` (${ctx.platform})` : '';
-              return `${index}. \`${id}\`${info}`;
+              const marker = id === currentId ? ' ✅' : '';
+              return `${index}. \`${id}\`${info}${marker}`;
             }).join('\n');
             await adapter.sendReply(context, `📂 *Active Sessions:*\n${list}\n\nUse \`/session use <number>\` to switch.`);
           }
@@ -349,7 +352,6 @@ async function main() {
       logger.info('[TURN DONE]');
     } catch (err: any) {
       logger.error({ error: err }, '[TURN ERROR]');
-      activeTurnContexts.delete(sessionId); // wait, sessionId might not be defined if getSessionForContext failed
       
       const errorMessage = err?.message || String(err);
       const adapter = adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));

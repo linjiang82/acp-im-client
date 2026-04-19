@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Message, TextChannel } from 'discord.js';
+import { Client, GatewayIntentBits, Message, Partials } from 'discord.js';
 import { BaseAdapter, type MessageContext } from './types.js';
 import { pino } from 'pino';
 import { splitText } from '../utils/text.js';
@@ -24,9 +24,18 @@ export class DiscordAdapter extends BaseAdapter {
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
       ],
+      partials: [Partials.Channel, Partials.Message],
     });
 
     this.client.on('messageCreate', async (message: Message) => {
+      if (message.partial) {
+        try {
+          await message.fetch();
+        } catch (err) {
+          logger.error({ err }, 'Error fetching partial message');
+          return;
+        }
+      }
       if (message.author.bot) return;
 
       const context: MessageContext = {
@@ -54,7 +63,7 @@ export class DiscordAdapter extends BaseAdapter {
 
   public async sendReply(context: MessageContext, text: string): Promise<void> {
     const channel = await this.client.channels.fetch(context.channelId);
-    if (channel instanceof TextChannel) {
+    if (channel && 'send' in channel && typeof channel.send === 'function') {
       const chunks = splitText(text, this.MAX_MESSAGE_LENGTH);
       for (const chunk of chunks) {
         if (chunk.trim()) {

@@ -76,6 +76,11 @@ export class SessionManager {
     return this.sessionToContext.get(sessionId);
   }
 
+  public getCurrentSessionId(platform: string, channelId: string): string | undefined {
+    const key = `${platform}:${channelId}`;
+    return this.channelToSession.get(key);
+  }
+
   public removeSession(platform: string, contextId: string): void {
     const key = `${platform}:${contextId}`;
     const sessionId = this.channelToSession.get(key);
