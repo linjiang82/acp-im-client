@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  acp-im-client:
+    build: .
+    volumes:
+      - ./.env:/app/.env
+      # We mount the gemini cli binary from the host if it's installed there
+      # Or assume it's installed in the image
+      # - /usr/local/bin/gemini:/usr/local/bin/gemini
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN}
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TEAMS_APP_ID=${TEAMS_APP_ID}
+      - TEAMS_APP_PASSWORD=${TEAMS_APP_PASSWORD}
+      - GEMINI_PATH=${GEMINI_PATH:-gemini}
