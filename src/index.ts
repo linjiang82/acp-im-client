@@ -178,6 +178,19 @@ async function main() {
   const handleMessage = async (context: MessageContext) => {
     logger.info(`[TURN START] Platform: ${context.platform}, Channel: ${context.channelId}, User: ${context.userId}: "${context.text}"`);
     
+    // 5.1 Handle Slash Commands
+    const triggerText = context.text.trim().toLowerCase();
+    if (triggerText === '/session') {
+      logger.info({ platform: context.platform, channelId: context.channelId }, 'Resetting session via slash command');
+      sessionManager.removeSession(context.platform, context.channelId);
+      
+      const adapter = adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
+      if (adapter) {
+        await adapter.sendReply(context, '✨ *Session reset.* The next message will start a fresh conversation.');
+      }
+      return;
+    }
+
     try {
       const sessionId = await sessionManager.getSessionForContext(context);
       logger.debug(`[TURN] Using ACP Session: ${sessionId}`);
