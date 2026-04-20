@@ -42,9 +42,15 @@ async function main() {
   const adapters: BaseAdapter[] = [];
 
   if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_BOT_TOKEN !== 'xoxb-your-bot-token') {
-    const slack = new SlackAdapter(process.env.SLACK_BOT_TOKEN, process.env.SLACK_APP_TOKEN || '');
-    adapters.push(slack);
-    logger.info('Slack adapter added');
+    if (process.env.SLACK_APP_TOKEN) {
+      const slack = new SlackAdapter(process.env.SLACK_BOT_TOKEN, process.env.SLACK_APP_TOKEN);
+      adapters.push(slack);
+      logger.info('Slack adapter added');
+    } else {
+      logger.warn('Slack Bot Token provided but SLACK_APP_TOKEN is missing. Slack adapter skipped (Socket Mode requires an App Token).');
+    }
+  } else {
+    logger.debug('Slack tokens not configured or default, skipping Slack adapter');
   }
 
   if (process.env.DISCORD_TOKEN && process.env.DISCORD_TOKEN !== 'your-discord-bot-token') {

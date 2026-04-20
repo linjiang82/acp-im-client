@@ -1,4 +1,4 @@
-import pkg from '@slack/bolt';
+import pkg, { LogLevel } from '@slack/bolt';
 const { App } = pkg;
 import { BaseAdapter, type MessageContext } from './types.js';
 import { pino } from 'pino';
@@ -20,6 +20,8 @@ export class SlackAdapter extends BaseAdapter {
       token: token,
       appToken: appToken,
       socketMode: true,
+      // Use custom logger to reduce noise
+      logLevel: LogLevel.INFO,
     });
 
     this.app.message(async ({ message }: any) => {
