@@ -25,14 +25,35 @@ export class SlackAdapter extends BaseAdapter {
     });
 
     this.app.message(async ({ message }: any) => {
+      logger.debug({ message }, 'Received Slack message event');
       if (!message.text || message.bot_id) return;
 
       const context: MessageContext = {
         platform: 'slack',
-        channelId: message.channelId || message.channel,
+        channelId: message.channel,
         userId: message.user,
         text: message.text,
         threadId: message.thread_ts,
+      };
+
+      if (this.onMessage) {
+        await this.onMessage(context);
+      }
+    });
+
+    this.app.event('app_mention', async ({ event }: any) => {
+      logger.debug({ event }, 'Received Slack app_mention event');
+      if (!event.text) return;
+
+      // Strip the mention from the text (e.g. <@U123456> hello -> hello)
+      const cleanText = event.text.replace(/<@U[A-Z0-9]+>/g, '').trim();
+
+      const context: MessageContext = {
+        platform: 'slack',
+        channelId: event.channel,
+        userId: event.user,
+        text: cleanText,
+        threadId: event.thread_ts || event.ts,
       };
 
       if (this.onMessage) {
@@ -55,11 +76,16 @@ export class SlackAdapter extends BaseAdapter {
     const chunks = splitText(text, this.MAX_MESSAGE_LENGTH);
     for (const chunk of chunks) {
       if (chunk.trim()) {
-        await this.app.client.chat.postMessage({
-          channel: context.channelId,
-          text: chunk,
-          thread_ts: context.threadId,
-        });
+        try {
+          logger.debug({ channel: context.channelId, chunkLength: chunk.length }, 'Sending Slack message');
+          await this.app.client.chat.postMessage({
+            channel: context.channelId,
+            text: chunk,
+            thread_ts: context.threadId,
+          });
+        } catch (err) {
+          logger.error({ err, context }, 'Failed to send Slack message');
+        }
       }
     }
   }
