@@ -7,6 +7,7 @@ import { SlackAdapter } from './adapters/slack.js';
 import { DiscordAdapter } from './adapters/discord.js';
 import { TelegramAdapter } from './adapters/telegram.js';
 import { type MessageContext, BaseAdapter } from './adapters/types.js';
+import { CommandHandler } from './core/commandHandler.js';
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'debug',
@@ -181,191 +182,17 @@ async function main() {
   });
 
   // 5. Unified Message Handler
-  const handleMessage = async (context: MessageContext) => {
-    logger.info(`[TURN START] Platform: ${context.platform}, Channel: ${context.channelId}, User: ${context.userId}: "${context.text}"`);
-    
-    // 5.1 Handle Slash Commands
-    const triggerText = context.text.trim().toLowerCase();
-    if (triggerText.startsWith('/session')) {
-      const parts = triggerText.split(' ');
-      const subcommand = parts[1] || 'new'; // default to new if just /session
-      const adapter = adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
+  const commandHandler = new CommandHandler(
+    client,
+    sessionManager,
+    adapters,
+    messageBuffers,
+    thoughtBuffers,
+    pendingPermissions,
+    activeTurnContexts
+  );
 
-      if (subcommand === 'new') {
-        logger.info({ platform: context.platform, channelId: context.channelId }, 'Starting new session');
-        const sessionId = await sessionManager.createNewSessionForContext(context);
-        if (adapter) {
-          await adapter.sendReply(context, `✨ *New session started.* ID: \`${sessionId}\``);
-        }
-        return;
-      }
-
-      if (subcommand === 'ls' || subcommand === 'list') {
-        const sessions = await sessionManager.listAllSessions();
-        const currentId = sessionManager.getCurrentSessionId(context.platform, context.channelId);
-        
-        if (adapter) {
-          if (sessions.length === 0) {
-            await adapter.sendReply(context, '📂 *No active sessions found.*');
-          } else {
-            const list = sessions.map((id, index) => {
-              const ctx = sessionManager.getContextForSession(id);
-              const info = ctx ? ` (${ctx.platform})` : '';
-              const marker = id === currentId ? ' ✅' : '';
-              return `${index}. \`${id}\`${info}${marker}`;
-            }).join('\n');
-            await adapter.sendReply(context, `📂 *Active Sessions:*\n${list}\n\nUse \`/session use <number>\` to switch.`);
-          }
-        }
-        return;
-      }
-
-      if (subcommand === 'use' || subcommand === 'switch') {
-        const index = parseInt(parts[2] || '');
-        if (isNaN(index)) {
-          if (adapter) await adapter.sendReply(context, '❌ *Please provide a session number.* Example: `/session use 0`');
-          return;
-        }
-
-        const sessionId = sessionManager.switchSession(context, index);
-        if (adapter) {
-          if (sessionId) {
-            await adapter.sendReply(context, `🔄 *Switched to session ${index}:* \`${sessionId}\``);
-          } else {
-            await adapter.sendReply(context, `❌ *Invalid session number:* ${index}. Use \`/session ls\` to see available sessions.`);
-          }
-        }
-        return;
-      }
-
-      // If command not recognized
-      if (adapter) {
-        await adapter.sendReply(context, '❓ *Unknown subcommand.* Available: `new`, `ls`, `use <n>`');
-      }
-      return;
-    }
-
-    try {
-      const sessionId = await sessionManager.getSessionForContext(context);
-      logger.debug(`[TURN] Using ACP Session: ${sessionId}`);
-
-      // Check for pending permission
-      const pending = pendingPermissions.get(sessionId);
-      if (pending) {
-        const text = context.text.toLowerCase().trim();
-        const isAlways = ['always', 'always allow', 'aa'].includes(text);
-        const isYes = isAlways || ['yes', 'y', 'approve', 'ok', 'allow'].includes(text);
-        const isNo = ['no', 'n', 'reject', 'cancel', 'deny'].includes(text);
-
-        if (isYes || isNo) {
-           logger.info({ sessionId, isYes, isAlways }, '[TURN] User responded to permission');
-           
-           // Find matching option
-           let kind = '';
-           if (isAlways) {
-             kind = 'allow_always';
-           } else {
-             kind = isYes ? 'allow_once' : 'reject_once';
-           }
-
-           const option = pending.options.find(o => o.kind === kind) || 
-                          pending.options.find(o => isYes ? o.kind.startsWith('allow') : o.kind.startsWith('reject'));
-           
-           if (option) {
-             pendingPermissions.delete(sessionId);
-             client.respond(pending.id, { 
-               outcome: {
-                 outcome: 'selected',
-                 optionId: option.optionId
-               }
-             });
-             return;
-           } else {
-             logger.warn({ options: pending.options }, 'No matching permission option found');
-             pendingPermissions.delete(sessionId);
-             client.respond(pending.id, { outcome: { outcome: isYes ? 'approved' : 'rejected' } });
-             return;
-           }
-        }
-      }
-
-      // Start of a new turn
-      activeTurnContexts.set(sessionId, context);
-      messageBuffers.set(sessionId, '');
-      thoughtBuffers.set(sessionId, '');
-      toolOutputBuffers.set(sessionId, '');
-
-      // Pass the message to the agent
-      logger.debug('[TURN] Sending prompt to agent...');
-      const result = await client.prompt(sessionId, context.text);
-      logger.info({ sessionId, result }, '[TURN] Agent prompt request resolved');
-      
-      // Turn finished
-      activeTurnContexts.delete(sessionId);
-
-      // Collect collected text
-      const messageText = (messageBuffers.get(sessionId) || '').trim();
-      const thoughtText = (thoughtBuffers.get(sessionId) || '').trim();
-      
-      logger.debug({ messageLength: messageText.length, thoughtLength: thoughtText.length }, '[TURN] Buffers collected');
-
-      // Fallback to result content if buffer is empty
-      let responseText = messageText;
-      if (!responseText) {
-        responseText = (result?.content?.[0]?.text || result?.text || '').trim();
-        if (responseText) {
-          logger.debug('[TURN] Falling back to result text');
-        }
-      }
-
-      // Prepare final response
-      let finalOutput = '';
-      if (thoughtText) {
-        const thoughtLines = thoughtText.split('\n');
-        finalOutput += thoughtLines.map(line => `> ${line}`).join('\n') + '\n\n';
-      }
-      
-      // We don't append toolOutputText here because we've already streamed it.
-      // But if there's any final message, send it.
-      finalOutput += responseText;
-
-      // Find the adapter to send reply
-      const adapter = adapters.find(a => {
-        const name = a.constructor.name.toLowerCase();
-        return name.includes(context.platform.toLowerCase());
-      });
-
-      if (finalOutput.trim()) {
-        if (adapter) {
-          logger.info({ platform: context.platform, length: finalOutput.length }, '[TURN] Sending final reply to bot');
-          await adapter.sendReply(context, finalOutput);
-        } else {
-          logger.error({ platform: context.platform }, '[TURN] CRITICAL: No adapter found for platform');
-        }
-      } else {
-        logger.warn({ sessionId }, '[TURN] Agent returned no text content');
-        
-        if (adapter) {
-          // If we haven't sent anything yet, send a summary
-          if (result?.stop_reason && result.stop_reason !== 'end_turn') {
-            await adapter.sendReply(context, `_Turn ended: ${result.stop_reason}_`);
-          } else {
-             // Turn finished, likely all info was already streamed
-             logger.debug('[TURN] Turn finished (everything should have been streamed)');
-          }
-        }
-      }
-      logger.info('[TURN DONE]');
-    } catch (err: any) {
-      logger.error({ error: err }, '[TURN ERROR]');
-      
-      const errorMessage = err?.message || String(err);
-      const adapter = adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
-      if (adapter) {
-        await adapter.sendReply(context, `Error: ${errorMessage}`);
-      }
-    }
-  };
+  const handleMessage = commandHandler.handleMessage;
 
   // 6. Start Adapters
   for (const adapter of adapters) {
