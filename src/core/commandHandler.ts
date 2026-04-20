@@ -48,10 +48,15 @@ export class CommandHandler {
       const adapter = this.adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
 
       if (subcommand === 'new') {
-        logger.info({ platform: context.platform, channelId: context.channelId }, 'Starting new session');
-        const sessionId = await this.sessionManager.createNewSessionForContext(context);
+        const path = parts.slice(2).join(' ').trim();
+        logger.info({ platform: context.platform, channelId: context.channelId, path }, 'Starting new session');
+        const sessionId = await this.sessionManager.createNewSessionForContext(context, path || undefined);
         if (adapter) {
-          await adapter.sendReply(context, `✨ *New session started.* ID: \`${sessionId}\``);
+          let msg = `✨ *New session started.* ID: \`${sessionId}\``;
+          if (path) {
+            msg += `\nScoped to: \`${path}\``;
+          }
+          await adapter.sendReply(context, msg);
         }
         return;
       }

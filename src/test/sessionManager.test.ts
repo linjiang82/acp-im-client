@@ -50,4 +50,13 @@ describe('SessionManager', () => {
     const result = manager.switchSession(context, 99);
     expect(result).toBeNull();
   });
+
+  it('should pass cwd to client.newSession', async () => {
+    const context = { platform: 'slack', channelId: 'C1', userId: 'U1', text: 'hi' };
+    const customPath = '/custom/path';
+    
+    await manager.createNewSessionForContext(context, customPath);
+    
+    expect(mockClient.newSession).toHaveBeenCalledWith(customPath);
+  });
 });

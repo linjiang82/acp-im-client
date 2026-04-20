@@ -95,7 +95,7 @@ describe('CommandHandler', () => {
 
     await commandHandler.handleMessage(context);
 
-    expect(mockSessionManager.createNewSessionForContext).toHaveBeenCalledWith(context);
+    expect(mockSessionManager.createNewSessionForContext).toHaveBeenCalledWith(context, undefined);
     expect(mockAdapter.sendReply).toHaveBeenCalledWith(
       context,
       expect.stringContaining('New session started')
@@ -108,7 +108,20 @@ describe('CommandHandler', () => {
 
     await commandHandler.handleMessage(context);
 
-    expect(mockSessionManager.createNewSessionForContext).toHaveBeenCalledWith(context);
+    expect(mockSessionManager.createNewSessionForContext).toHaveBeenCalledWith(context, undefined);
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      context,
+      expect.stringContaining('New session started')
+    );
+  });
+
+  it('should handle /session new with path command', async () => {
+    const context: MessageContext = { platform: 'mock', channelId: 'c1', userId: 'u1', text: '/session new /tmp/project' };
+    mockSessionManager.createNewSessionForContext.mockResolvedValue('new-session-id');
+
+    await commandHandler.handleMessage(context);
+
+    expect(mockSessionManager.createNewSessionForContext).toHaveBeenCalledWith(context, '/tmp/project');
     expect(mockAdapter.sendReply).toHaveBeenCalledWith(
       context,
       expect.stringContaining('New session started')

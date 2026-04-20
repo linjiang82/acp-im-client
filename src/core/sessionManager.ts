@@ -46,9 +46,9 @@ export class SessionManager {
     this.sessionToContext.set(sessionId, context);
   }
 
-  public async createNewSessionForContext(context: MessageContext): Promise<string> {
+  public async createNewSessionForContext(context: MessageContext, cwd?: string): Promise<string> {
     const key = `${context.platform}:${context.channelId}`;
-    const response = await this.client.newSession(process.env.GEMINI_CWD || process.cwd());
+    const response = await this.client.newSession(cwd || process.env.GEMINI_CWD || process.cwd());
     const sessionId = response.sessionId;
     this.registerSession(sessionId, context);
     this.channelToSession.set(key, sessionId);
