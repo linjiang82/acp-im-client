@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AcpClient } from '../agent/acpClient.js';
 import { SessionManager } from '../core/sessionManager.js';
+import { CommandHandler } from '../core/commandHandler.js';
 import { EventEmitter } from 'events';
 
 describe('Integration: Session Turn', () => {
@@ -59,7 +60,14 @@ describe('Integration: Session Turn', () => {
           mockAgent.emit('stdout', Buffer.from(JSON.stringify({
             jsonrpc: '2.0',
             id: parsed.id,
-            result: { stop_reason: 'end_turn' }
+            result: { 
+              stop_reason: 'end_turn',
+              usage: {
+                total_tokens: 150,
+                prompt_tokens: 100,
+                completion_tokens: 50
+              }
+            }
           }) + '\n'));
         }, 80);
       }
@@ -70,6 +78,10 @@ describe('Integration: Session Turn', () => {
 
   it('should collect all chunks and return the full message', async () => {
     const messageBuffers = new Map<string, string>();
+    const thoughtBuffers = new Map<string, string>();
+    const pendingPermissions = new Map<string, any>();
+    const activeTurnContexts = new Map<string, any>();
+    
     client.on('notification:session/update', (params) => {
       if (params.update.sessionUpdate === 'agent_message_chunk') {
         const current = messageBuffers.get(params.sessionId) || '';
@@ -77,18 +89,37 @@ describe('Integration: Session Turn', () => {
       }
     });
 
-    const sessionId = await sessionManager.getSessionForContext({
+    const mockAdapter: any = {
+      constructor: { name: 'TestAdapter' },
+      sendReply: vi.fn()
+    };
+
+    const commandHandler = new CommandHandler(
+      client,
+      sessionManager,
+      [mockAdapter],
+      messageBuffers,
+      thoughtBuffers,
+      pendingPermissions,
+      activeTurnContexts
+    );
+
+    const context = {
       platform: 'test',
       channelId: 'c1',
       userId: 'u1',
       text: 'hi'
-    });
-    expect(sessionId).toBe('test-session-id');
+    };
 
-    const result = await client.prompt(sessionId, 'hi');
-    expect(result.stop_reason).toBe('end_turn');
+    await commandHandler.handleMessage(context);
 
-    const fullMessage = messageBuffers.get(sessionId);
-    expect(fullMessage).toBe('Hello world!');
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      context,
+      expect.stringContaining('Hello world!')
+    );
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      context,
+      expect.stringContaining('150/ 100/ 50 usage')
+    );
   });
 });

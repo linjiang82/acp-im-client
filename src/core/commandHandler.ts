@@ -189,6 +189,13 @@ export class CommandHandler {
       }
       
       finalOutput += responseText;
+      
+      if (result?.usage) {
+        const { total_tokens, prompt_tokens, completion_tokens } = result.usage;
+        if (total_tokens !== undefined) {
+          finalOutput += `\n\n_${total_tokens}/ ${prompt_tokens ?? 0}/ ${completion_tokens ?? 0} usage_`;
+        }
+      }
 
       // Find the adapter to send reply
       const adapter = this.adapters.find(a => {

@@ -127,4 +127,29 @@ describe('CommandHandler', () => {
       expect.stringContaining('New session started')
     );
   });
+
+  it('should include token usage in the response', async () => {
+    const context: MessageContext = { platform: 'mock', channelId: 'c1', userId: 'u1', text: 'hello' };
+    mockSessionManager.getSessionForContext.mockResolvedValue('s1');
+    mockClient.prompt.mockResolvedValue({
+      text: 'Hi there!',
+      stop_reason: 'end_turn',
+      usage: {
+        total_tokens: 150,
+        prompt_tokens: 100,
+        completion_tokens: 50
+      }
+    });
+
+    await commandHandler.handleMessage(context);
+
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      context,
+      expect.stringContaining('Hi there!')
+    );
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      context,
+      expect.stringContaining('150/ 100/ 50 usage')
+    );
+  });
 });
