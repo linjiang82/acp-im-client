@@ -24,6 +24,11 @@ export class SlackAdapter extends BaseAdapter {
       logLevel: LogLevel.INFO,
     });
 
+    // Catch any connection or API errors
+    this.app.error(async (error: any) => {
+      logger.error({ error }, 'Slack Bolt encountered an error');
+    });
+
     this.app.message(async ({ message }: any) => {
       logger.debug({ message }, 'Received Slack message event');
       if (!message.text || message.bot_id) return;
@@ -60,11 +65,18 @@ export class SlackAdapter extends BaseAdapter {
         await this.onMessage(context);
       }
     });
+
+    // Diagnostic: Log all event types to see what's coming in
+    this.app.use(async ({ event, next }: any) => {
+      logger.trace({ type: event.type }, 'Slack event received (pre-filter)');
+      await next();
+    });
   }
 
   public async start(): Promise<void> {
-    logger.info('Starting Slack adapter');
+    logger.info('Starting Slack adapter (Socket Mode)');
     await this.app.start();
+    logger.info('Slack adapter is online');
   }
 
   public async stop(): Promise<void> {
