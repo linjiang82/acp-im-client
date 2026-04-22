@@ -23,6 +23,7 @@ export class TelegramAdapter extends BaseAdapter {
         channelId: ctx.chat.id.toString(),
         userId: ctx.from.id.toString(),
         text: ctx.message.text,
+        threadId: (ctx.message as any).message_thread_id?.toString(),
       };
 
       if (this.onMessage) {
@@ -45,7 +46,9 @@ export class TelegramAdapter extends BaseAdapter {
     const chunks = splitText(text, this.MAX_MESSAGE_LENGTH);
     for (const chunk of chunks) {
       if (chunk.trim()) {
-        await this.bot.telegram.sendMessage(context.channelId, chunk);
+        await this.bot.telegram.sendMessage(context.channelId, chunk, {
+          message_thread_id: context.threadId ? parseInt(context.threadId) : undefined
+        });
       }
     }
   }

@@ -59,4 +59,27 @@ describe('SessionManager', () => {
     
     expect(mockClient.newSession).toHaveBeenCalledWith(customPath);
   });
+
+  it('should isolate sessions by threadId', async () => {
+    const context1 = { platform: 'slack', channelId: 'C1', userId: 'U1', text: 'hi', threadId: 'T1' };
+    const context2 = { platform: 'slack', channelId: 'C1', userId: 'U1', text: 'hi', threadId: 'T2' };
+    const context3 = { platform: 'slack', channelId: 'C1', userId: 'U1', text: 'hi' }; // no thread
+
+    mockClient.newSession.mockResolvedValueOnce({ sessionId: 's1' });
+    mockClient.newSession.mockResolvedValueOnce({ sessionId: 's2' });
+    mockClient.newSession.mockResolvedValueOnce({ sessionId: 's3' });
+
+    const s1 = await manager.getSessionForContext(context1);
+    const s2 = await manager.getSessionForContext(context2);
+    const s3 = await manager.getSessionForContext(context3);
+
+    expect(s1).toBe('s1');
+    expect(s2).toBe('s2');
+    expect(s3).toBe('s3');
+
+    // Subsequent calls should return same sessions
+    expect(await manager.getSessionForContext(context1)).toBe('s1');
+    expect(await manager.getSessionForContext(context2)).toBe('s2');
+    expect(await manager.getSessionForContext(context3)).toBe('s3');
+  });
 });

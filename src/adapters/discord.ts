@@ -43,6 +43,7 @@ export class DiscordAdapter extends BaseAdapter {
         channelId: message.channelId,
         userId: message.author.id,
         text: message.content,
+        threadId: message.thread?.id,
       };
 
       if (this.onMessage) {
@@ -67,7 +68,11 @@ export class DiscordAdapter extends BaseAdapter {
       const chunks = splitText(text, this.MAX_MESSAGE_LENGTH);
       for (const chunk of chunks) {
         if (chunk.trim()) {
-          await channel.send(chunk);
+          // If threadId is present and different from channelId, we might want to send to thread
+          // But in Discord, thread is a channel. If we are already in the thread channel, channel.send works.
+          // If we want to reply to a specific message to start a thread, it's different.
+          // For now, simple send to the channel/thread provided in channelId.
+          await (channel as any).send(chunk);
         }
       }
     }

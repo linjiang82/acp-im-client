@@ -25,7 +25,7 @@ export class SessionManager {
   }
 
   public async getSessionForContext(context: MessageContext): Promise<string> {
-    const key = `${context.platform}:${context.channelId}`;
+    const key = `${context.platform}:${context.channelId}:${context.threadId || ''}`;
     let sessionId = this.channelToSession.get(key);
 
     if (!sessionId) {
@@ -47,7 +47,7 @@ export class SessionManager {
   }
 
   public async createNewSessionForContext(context: MessageContext, cwd?: string): Promise<string> {
-    const key = `${context.platform}:${context.channelId}`;
+    const key = `${context.platform}:${context.channelId}:${context.threadId || ''}`;
     const response = await this.client.newSession(cwd || process.env.GEMINI_CWD || process.cwd());
     const sessionId = response.sessionId;
     this.registerSession(sessionId, context);
@@ -67,7 +67,7 @@ export class SessionManager {
     const sessionId = this.sessionRegistry[index];
     if (!sessionId) return null;
     
-    const key = `${context.platform}:${context.channelId}`;
+    const key = `${context.platform}:${context.channelId}:${context.threadId || ''}`;
     this.channelToSession.set(key, sessionId);
     return sessionId;
   }
@@ -76,13 +76,13 @@ export class SessionManager {
     return this.sessionToContext.get(sessionId);
   }
 
-  public getCurrentSessionId(platform: string, channelId: string): string | undefined {
-    const key = `${platform}:${channelId}`;
+  public getCurrentSessionId(platform: string, channelId: string, threadId?: string): string | undefined {
+    const key = `${platform}:${channelId}:${threadId || ''}`;
     return this.channelToSession.get(key);
   }
 
-  public removeSession(platform: string, contextId: string): void {
-    const key = `${platform}:${contextId}`;
+  public removeSession(platform: string, channelId: string, threadId?: string): void {
+    const key = `${platform}:${channelId}:${threadId || ''}`;
     const sessionId = this.channelToSession.get(key);
     if (sessionId) {
       // We don't remove from registry to keep indices stable

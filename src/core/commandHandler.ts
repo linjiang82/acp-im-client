@@ -63,7 +63,7 @@ export class CommandHandler {
 
       if (subcommand === 'ls' || subcommand === 'list') {
         const sessions = await this.sessionManager.listAllSessions();
-        const currentId = this.sessionManager.getCurrentSessionId(context.platform, context.channelId);
+        const currentId = this.sessionManager.getCurrentSessionId(context.platform, context.channelId, context.threadId);
         
         if (adapter) {
           if (sessions.length === 0) {
