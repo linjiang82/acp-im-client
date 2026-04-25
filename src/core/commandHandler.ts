@@ -1,5 +1,7 @@
 import { pino } from 'pino';
-import { AcpClient } from '../agent/acpClient.js';
+import * as path from 'path';
+import * as os from 'os';
+import { type AcpClient } from '../agent/acpClient.js';
 import { SessionManager } from './sessionManager.js';
 import { type MessageContext, BaseAdapter } from '../adapters/types.js';
 
@@ -48,13 +50,23 @@ export class CommandHandler {
       const adapter = this.adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
 
       if (subcommand === 'new') {
-        const path = parts.slice(2).join(' ').trim();
-        logger.info({ platform: context.platform, channelId: context.channelId, path }, 'Starting new session');
-        const sessionId = await this.sessionManager.createNewSessionForContext(context, path || undefined);
+        let inputPath = parts.slice(2).join(' ').trim();
+        let resolvedPath: string | undefined = undefined;
+
+        if (inputPath) {
+          if (path.isAbsolute(inputPath)) {
+            resolvedPath = inputPath;
+          } else {
+            resolvedPath = path.join(os.homedir(), inputPath);
+          }
+        }
+
+        logger.info({ platform: context.platform, channelId: context.channelId, inputPath, resolvedPath }, 'Starting new session');
+        const sessionId = await this.sessionManager.createNewSessionForContext(context, resolvedPath);
         if (adapter) {
           let msg = `✨ *New session started.* ID: \`${sessionId}\``;
-          if (path) {
-            msg += `\nScoped to: \`${path}\``;
+          if (resolvedPath) {
+            msg += `\nScoped to: \`${resolvedPath}\``;
           }
           await adapter.sendReply(context, msg);
         }
