@@ -34,6 +34,7 @@ describe('CommandHandler', () => {
       getContextForSession: vi.fn(),
       switchSession: vi.fn(),
       getUsage: vi.fn(),
+      updateUsage: vi.fn(),
     };
     mockAdapter = new MockAdapter();
     

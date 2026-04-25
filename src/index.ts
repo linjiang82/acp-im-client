@@ -93,9 +93,10 @@ async function main() {
       messageBuffers.set(sessionId, current + text);
     } else if (update.sessionUpdate === 'usage_update') {
       if (update.usage) {
+        const currentUsage = sessionManager.getUsage(sessionId);
         sessionManager.updateUsage(sessionId, {
-          used: update.usage.used || 0,
-          size: update.usage.size || 0
+          used: update.usage.used ?? update.usage.total_tokens ?? currentUsage?.used ?? 0,
+          size: update.usage.size ?? update.usage.context_size ?? currentUsage?.size ?? 1000000
         });
       }
     } else if (update.sessionUpdate === 'tool_call') {

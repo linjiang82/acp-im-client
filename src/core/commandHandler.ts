@@ -216,6 +216,14 @@ _No usage data available yet. Send a message first._`);
       
       if (result?.usage) {
         const { total_tokens, prompt_tokens, completion_tokens } = result.usage;
+        
+        // Update session manager with usage data
+        const currentUsage = this.sessionManager.getUsage(sessionId);
+        this.sessionManager.updateUsage(sessionId, {
+          used: total_tokens ?? currentUsage?.used ?? 0,
+          size: result.usage.size ?? result.usage.context_size ?? currentUsage?.size ?? 1000000 // default or existing
+        });
+
         if (total_tokens !== undefined) {
           finalOutput += `\n\n_${total_tokens}/ ${prompt_tokens ?? 0}/ ${completion_tokens ?? 0} usage_`;
         }
