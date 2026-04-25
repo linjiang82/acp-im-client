@@ -1,6 +1,7 @@
 import { pino } from 'pino';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 import { type AcpClient } from '../agent/acpClient.js';
 import { SessionManager } from './sessionManager.js';
 import { type MessageContext, BaseAdapter } from '../adapters/types.js';
@@ -20,6 +21,7 @@ export class CommandHandler {
   private thoughtBuffers: Map<string, string>;
   private pendingPermissions: Map<string, { id: string | number, options: any[], context: MessageContext }>;
   private activeTurnContexts: Map<string, MessageContext>;
+  private pendingDirCreations: Map<string, string>;
 
   constructor(
     client: AcpClient,
@@ -37,11 +39,50 @@ export class CommandHandler {
     this.thoughtBuffers = thoughtBuffers;
     this.pendingPermissions = pendingPermissions;
     this.activeTurnContexts = activeTurnContexts;
+    this.pendingDirCreations = new Map();
   }
 
   public handleMessage = async (context: MessageContext) => {
     logger.info(`[TURN START] Platform: ${context.platform}, Channel: ${context.channelId}, User: ${context.userId}: "${context.text}"`);
     
+    // 5.0 Handle Pending Directory Creations
+    const contextKey = `${context.platform}:${context.channelId}:${context.threadId || ''}`;
+    const pendingPath = this.pendingDirCreations.get(contextKey);
+    const adapter = this.adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
+
+    if (pendingPath) {
+      const text = context.text.toLowerCase().trim();
+      const isYes = ['yes', 'y', 'create', 'ok'].includes(text);
+      const isNo = ['no', 'n', 'cancel', 'reject'].includes(text);
+
+      if (isYes) {
+        try {
+          fs.mkdirSync(pendingPath, { recursive: true });
+          this.pendingDirCreations.delete(contextKey);
+          
+          if (adapter) await adapter.sendReply(context, `✅ *Directory created:* \`${pendingPath}\``);
+          
+          const sessionId = await this.sessionManager.createNewSessionForContext(context, pendingPath);
+          if (adapter) {
+            await adapter.sendReply(context, `✨ *New session started.* ID: \`${sessionId}\`\nScoped to: \`${pendingPath}\``);
+          }
+          return;
+        } catch (err: any) {
+          logger.error({ err, path: pendingPath }, 'Failed to create directory');
+          this.pendingDirCreations.delete(contextKey);
+          if (adapter) await adapter.sendReply(context, `❌ *Failed to create directory:* ${err.message}`);
+          return;
+        }
+      } else if (isNo) {
+        this.pendingDirCreations.delete(contextKey);
+        if (adapter) await adapter.sendReply(context, '❌ *Session creation cancelled.*');
+        return;
+      } else {
+        if (adapter) await adapter.sendReply(context, '❓ *Please answer "yes" or "no" to create the directory.*');
+        return;
+      }
+    }
+
     // 5.1 Handle Slash Commands (and now without slash too)
     const triggerText = context.text.trim().toLowerCase();
     if (triggerText.startsWith('/session') || triggerText.startsWith('session ')) {
@@ -59,6 +100,14 @@ export class CommandHandler {
           } else {
             resolvedPath = path.join(os.homedir(), inputPath);
           }
+        }
+
+        if (resolvedPath && !fs.existsSync(resolvedPath)) {
+          this.pendingDirCreations.set(contextKey, resolvedPath);
+          if (adapter) {
+            await adapter.sendReply(context, `📁 *Directory \`${resolvedPath}\` does not exist. Do you want to create it? (yes/no)*`);
+          }
+          return;
         }
 
         logger.info({ platform: context.platform, channelId: context.channelId, inputPath, resolvedPath }, 'Starting new session');

@@ -3,6 +3,16 @@ import { CommandHandler } from '../core/commandHandler.js';
 import { SessionManager } from '../core/sessionManager.js';
 import { AcpClient } from '../agent/acpClient.js';
 import { type MessageContext, BaseAdapter } from '../adapters/types.js';
+import * as fs from 'fs';
+
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof import('fs')>('fs');
+  return {
+    ...actual,
+    existsSync: vi.fn().mockReturnValue(true),
+    mkdirSync: vi.fn(),
+  };
+});
 
 class MockAdapter extends BaseAdapter {
   public async start() {}
