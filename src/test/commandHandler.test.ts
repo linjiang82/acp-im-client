@@ -33,6 +33,7 @@ describe('CommandHandler', () => {
       getCurrentSessionId: vi.fn(),
       getContextForSession: vi.fn(),
       switchSession: vi.fn(),
+      getUsage: vi.fn(),
     };
     mockAdapter = new MockAdapter();
     
@@ -125,6 +126,35 @@ describe('CommandHandler', () => {
     expect(mockAdapter.sendReply).toHaveBeenCalledWith(
       context,
       expect.stringContaining('New session started')
+    );
+  });
+
+  it('should handle /session status command with usage data', async () => {
+    const context: MessageContext = { platform: 'mock', channelId: 'c1', userId: 'u1', text: '/session status' };
+    mockSessionManager.getCurrentSessionId.mockReturnValue('s1');
+    mockSessionManager.getUsage.mockReturnValue({ used: 5000, size: 1000000 });
+
+    await commandHandler.handleMessage(context);
+
+    expect(mockAdapter.sendReply).toHaveBeenCalledTimes(1);
+    const call = mockAdapter.sendReply.mock.calls[0];
+    expect(call[0]).toEqual(context);
+    expect(call[1]).toContain('Session Status:* `s1`');
+    expect(call[1]).toContain('Tokens Used: `5,000`');
+    expect(call[1]).toContain('Context Size: `1,000,000`');
+    expect(call[1]).toContain('Usage Rate: `0.50%`');
+  });
+
+  it('should handle /session status command without usage data', async () => {
+    const context: MessageContext = { platform: 'mock', channelId: 'c1', userId: 'u1', text: '/session status' };
+    mockSessionManager.getCurrentSessionId.mockReturnValue('s1');
+    mockSessionManager.getUsage.mockReturnValue(undefined);
+
+    await commandHandler.handleMessage(context);
+
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      context,
+      expect.stringContaining('No usage data available yet')
     );
   });
 

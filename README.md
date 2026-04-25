@@ -19,6 +19,7 @@ You can control your sessions directly from the chat using the `/session` comman
 - **`/session new [path]`**: Starts a completely fresh conversation with a new ACP session ID. Optionally specify a directory `path` to use as the working directory for the session. (Default if no subcommand is provided).
 - **`/session ls`**: Lists all active sessions created during the current process. The current active session for the channel is marked with a ✅.
 - **`/session use <index>`**: Switches the current channel to the specified session index (e.g., `/session use 0`).
+- **`/session status`**: Shows token usage, context size, and usage rate for the current session.
 
 ## Prerequisites
 

@@ -8,6 +8,11 @@ const logger = pino({
   },
 });
 
+export interface SessionUsage {
+  used: number;
+  size: number;
+}
+
 export class SessionManager {
   private client: AcpClient;
   // Maps platform:contextId -> sessionId
@@ -16,12 +21,15 @@ export class SessionManager {
   private sessionToContext: Map<string, MessageContext>;
   // List of all unique session IDs seen in this process, for indexing
   private sessionRegistry: string[];
+  // Maps sessionId -> usage info
+  private sessionUsage: Map<string, SessionUsage>;
 
   constructor(client: AcpClient) {
     this.client = client;
     this.channelToSession = new Map();
     this.sessionToContext = new Map();
     this.sessionRegistry = [];
+    this.sessionUsage = new Map();
   }
 
   public async getSessionForContext(context: MessageContext): Promise<string> {
@@ -44,6 +52,14 @@ export class SessionManager {
       this.sessionRegistry.push(sessionId);
     }
     this.sessionToContext.set(sessionId, context);
+  }
+
+  public updateUsage(sessionId: string, usage: SessionUsage) {
+    this.sessionUsage.set(sessionId, usage);
+  }
+
+  public getUsage(sessionId: string): SessionUsage | undefined {
+    return this.sessionUsage.get(sessionId);
   }
 
   public async createNewSessionForContext(context: MessageContext, cwd?: string): Promise<string> {

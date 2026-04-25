@@ -99,9 +99,33 @@ export class CommandHandler {
         return;
       }
 
+      if (subcommand === 'status') {
+        const sessionId = this.sessionManager.getCurrentSessionId(context.platform, context.channelId, context.threadId);
+        if (!sessionId) {
+          if (adapter) await adapter.sendReply(context, '❌ *No active session found for this channel.*');
+          return;
+        }
+
+        const usage = this.sessionManager.getUsage(sessionId);
+        if (adapter) {
+          if (usage) {
+            const rate = usage.size > 0 ? ((usage.used / usage.size) * 100).toFixed(2) : '0.00';
+            const msg = `📊 *Session Status:* \`${sessionId}\`
+• Tokens Used: \`${usage.used.toLocaleString()}\`
+• Context Size: \`${usage.size.toLocaleString()}\`
+• Usage Rate: \`${rate}%\``;
+            await adapter.sendReply(context, msg);
+          } else {
+            await adapter.sendReply(context, `📊 *Session Status:* \`${sessionId}\`
+_No usage data available yet. Send a message first._`);
+          }
+        }
+        return;
+      }
+
       // If command not recognized
       if (adapter) {
-        await adapter.sendReply(context, '❓ *Unknown subcommand.* Available: `new`, `ls`, `use <n>`');
+        await adapter.sendReply(context, '❓ *Unknown subcommand.* Available: `new`, `ls`, `use <n>`, `status`');
       }
       return;
     }

@@ -91,10 +91,13 @@ async function main() {
       const text = update.content?.text || update.delta || (typeof update.content === 'string' ? update.content : '');
       const current = messageBuffers.get(sessionId) || '';
       messageBuffers.set(sessionId, current + text);
-    } else if (update.sessionUpdate === 'agent_thought_chunk') {
-      const text = update.content?.text || update.delta || (typeof update.content === 'string' ? update.content : '');
-      const current = thoughtBuffers.get(sessionId) || '';
-      thoughtBuffers.set(sessionId, current + text);
+    } else if (update.sessionUpdate === 'usage_update') {
+      if (update.usage) {
+        sessionManager.updateUsage(sessionId, {
+          used: update.usage.used || 0,
+          size: update.usage.size || 0
+        });
+      }
     } else if (update.sessionUpdate === 'tool_call') {
       const toolName = update.title || update.name || 'Unknown tool';
       const toolInput = update.rawInput ? (typeof update.rawInput === 'string' ? update.rawInput : JSON.stringify(update.rawInput, null, 2)) : '';

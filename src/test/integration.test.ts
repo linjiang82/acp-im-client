@@ -122,4 +122,103 @@ describe('Integration: Session Turn', () => {
       expect.stringContaining('150/ 100/ 50 usage')
     );
   });
+
+  it('should handle usage_update and show status', async () => {
+    const messageBuffers = new Map<string, string>();
+    const thoughtBuffers = new Map<string, string>();
+    const pendingPermissions = new Map<string, any>();
+    const activeTurnContexts = new Map<string, any>();
+
+    // Handle the notification manually since we are not using index.ts's listener here
+    client.on('notification:session/update', (params) => {
+      const { sessionId, update } = params;
+      if (update.sessionUpdate === 'usage_update' && update.usage) {
+        sessionManager.updateUsage(sessionId, {
+          used: update.usage.used,
+          size: update.usage.size
+        });
+      }
+    });
+
+    const mockAdapter: any = {
+      constructor: { name: 'TestAdapter' },
+      sendReply: vi.fn()
+    };
+
+    const commandHandler = new CommandHandler(
+      client,
+      sessionManager,
+      [mockAdapter],
+      messageBuffers,
+      thoughtBuffers,
+      pendingPermissions,
+      activeTurnContexts
+    );
+
+    // 1. Simulate usage update notification
+    mockAgent.emit('stdout', Buffer.from(JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'session/update',
+      params: {
+        sessionId: 'test-session-id',
+        update: { 
+          sessionUpdate: 'usage_update', 
+          usage: { used: 1234, size: 1000000 } 
+        }
+      }
+    }) + '\n'));
+
+    // 2. We need to make sure the session is registered in the session manager first
+    // by sending a regular message first.
+    mockAgent.send.mockImplementationOnce((msg) => {
+      const parsed = JSON.parse(msg);
+      if (parsed.method === 'session/new') {
+        mockAgent.emit('stdout', Buffer.from(JSON.stringify({
+          jsonrpc: '2.0',
+          id: parsed.id,
+          result: { sessionId: 'test-session-id' }
+        }) + '\n'));
+      }
+    });
+    mockAgent.send.mockImplementationOnce((msg) => {
+      const parsed = JSON.parse(msg);
+      if (parsed.method === 'session/prompt') {
+        mockAgent.emit('stdout', Buffer.from(JSON.stringify({
+          jsonrpc: '2.0',
+          id: parsed.id,
+          result: { stop_reason: 'end_turn' }
+        }) + '\n'));
+      }
+    });
+
+    const initContext = {
+      platform: 'test',
+      channelId: 'c1',
+      userId: 'u1',
+      text: 'hello'
+    };
+    await commandHandler.handleMessage(initContext);
+
+    const statusContext = {
+      platform: 'test',
+      channelId: 'c1',
+      userId: 'u1',
+      text: '/session status'
+    };
+
+    await commandHandler.handleMessage(statusContext);
+
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      statusContext,
+      expect.stringContaining('Session Status:* `test-session-id`')
+    );
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      statusContext,
+      expect.stringContaining('Tokens Used: `1,234`')
+    );
+    expect(mockAdapter.sendReply).toHaveBeenCalledWith(
+      statusContext,
+      expect.stringContaining('Usage Rate: `0.12%`')
+    );
+  });
 });
