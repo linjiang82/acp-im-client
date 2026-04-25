@@ -50,4 +50,9 @@ export class TeamsAdapter extends BaseAdapter {
     // This is simplified. Normally we'd need the original TurnContext or service URL.
     logger.warn('sendReply for Teams is not fully implemented: requires TurnContext state management');
   }
+
+  public override async sendTyping(_context: MessageContext): Promise<void> {
+    // Placeholder for Teams typing indicator
+    logger.warn('sendTyping for Teams is not implemented');
+  }
 }

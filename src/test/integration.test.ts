@@ -119,7 +119,7 @@ describe('Integration: Session Turn', () => {
     );
     expect(mockAdapter.sendReply).toHaveBeenCalledWith(
       context,
-      expect.stringContaining('150/ 100/ 50 usage')
+      expect.stringContaining('150 tokens used')
     );
   });
 

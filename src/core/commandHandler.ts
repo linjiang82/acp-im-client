@@ -45,10 +45,11 @@ export class CommandHandler {
   public handleMessage = async (context: MessageContext) => {
     logger.info(`[TURN START] Platform: ${context.platform}, Channel: ${context.channelId}, User: ${context.userId}: "${context.text}"`);
     
+    const adapter = this.adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
+
     // 5.0 Handle Pending Directory Creations
     const contextKey = `${context.platform}:${context.channelId}:${context.threadId || ''}`;
     const pendingPath = this.pendingDirCreations.get(contextKey);
-    const adapter = this.adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
 
     if (pendingPath) {
       const text = context.text.toLowerCase().trim();
@@ -88,7 +89,6 @@ export class CommandHandler {
     if (triggerText.startsWith('/session') || triggerText.startsWith('session ')) {
       const parts = triggerText.startsWith('/') ? triggerText.split(' ') : ['/session', ...triggerText.split(' ').slice(1)];
       const subcommand = parts[1] || 'new'; // default to new if just /session
-      const adapter = this.adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
 
       if (subcommand === 'new') {
         let inputPath = parts.slice(2).join(' ').trim();
@@ -239,9 +239,18 @@ _No usage data available yet. Send a message first._`);
       this.activeTurnContexts.set(sessionId, context);
       this.messageBuffers.set(sessionId, '');
       this.thoughtBuffers.set(sessionId, '');
-      // toolOutputBuffers is not explicitly passed but we can manage it or just rely on notifications
-      // Actually toolOutputBuffers WAS used in index.ts but only for logging and streaming
-      // index.ts handles notifications for toolOutputBuffers
+
+      // Start typing indicator
+      if (adapter && adapter.sendTyping) {
+        await adapter.sendTyping(context);
+      }
+      const typingInterval = setInterval(async () => {
+        if (adapter && adapter.sendTyping && this.activeTurnContexts.has(sessionId)) {
+          await adapter.sendTyping(context);
+        } else {
+          clearInterval(typingInterval);
+        }
+      }, 8000); // Send every 8 seconds
 
       // Pass the message to the agent
       logger.debug('[TURN] Sending prompt to agent...');
@@ -249,6 +258,7 @@ _No usage data available yet. Send a message first._`);
       logger.info({ sessionId, result }, '[TURN] Agent prompt request resolved');
       
       // Turn finished
+      clearInterval(typingInterval);
       this.activeTurnContexts.delete(sessionId);
 
       // Collect collected text
@@ -274,53 +284,48 @@ _No usage data available yet. Send a message first._`);
       }
       
       finalOutput += responseText;
-      
+
+      // Update session manager with usage data if present in result
       if (result?.usage) {
-        const { total_tokens, prompt_tokens, completion_tokens } = result.usage;
-        
-        // Update session manager with usage data
+        const { total_tokens } = result.usage;
         const currentUsage = this.sessionManager.getUsage(sessionId);
         this.sessionManager.updateUsage(sessionId, {
           used: total_tokens ?? currentUsage?.used ?? 0,
           size: result.usage.size ?? result.usage.context_size ?? currentUsage?.size ?? 1000000 // default or existing
         });
-
-        if (total_tokens !== undefined) {
-          finalOutput += `\n\n_${total_tokens}/ ${prompt_tokens ?? 0}/ ${completion_tokens ?? 0} usage_`;
-        }
       }
 
-      // Find the adapter to send reply
-      const adapter = this.adapters.find(a => {
-        const name = a.constructor.name.toLowerCase();
-        return name.includes(context.platform.toLowerCase());
-      });
+      // Always try to append usage footer if we have data in session manager
+      const finalUsage = this.sessionManager.getUsage(sessionId);
+      if (finalUsage && finalUsage.used > 0) {
+        // We only have total 'used' in session manager's SessionUsage interface
+        // If we want prompt/completion details, we'd need to expand that interface.
+        // For now, let's at least show the total used.
+        finalOutput += `\n\n_${finalUsage.used.toLocaleString()} tokens used_`;
+      }
 
-      if (finalOutput.trim()) {
-        if (adapter) {
+      if (finalOutput.trim()) {        if (adapter) {
           logger.info({ platform: context.platform, length: finalOutput.length }, '[TURN] Sending final reply to bot');
           await adapter.sendReply(context, finalOutput);
         } else {
           logger.error({ platform: context.platform }, '[TURN] CRITICAL: No adapter found for platform');
         }
-      } else {
+        } else {
         logger.warn({ sessionId }, '[TURN] Agent returned no text content');
-        
+
         if (adapter) {
           if (result?.stop_reason && result.stop_reason !== 'end_turn') {
             await adapter.sendReply(context, `_Turn ended: ${result.stop_reason}_`);
           }
         }
-      }
-      logger.info('[TURN DONE]');
-    } catch (err: any) {
-      logger.error({ error: err }, '[TURN ERROR]');
-      
-      const errorMessage = err?.message || String(err);
-      const adapter = this.adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
-      if (adapter) {
+        }
+        logger.info('[TURN DONE]');
+        } catch (err: any) {
+        logger.error({ error: err }, '[TURN ERROR]');
+
+        const errorMessage = err?.message || String(err);
+        if (adapter) {
         await adapter.sendReply(context, `Error: ${errorMessage}`);
-      }
-    }
-  };
+        }
+        }  };
 }

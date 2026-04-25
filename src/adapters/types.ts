@@ -16,4 +16,7 @@ export abstract class BaseAdapter {
   public abstract start(): Promise<void>;
   public abstract stop(): Promise<void>;
   public abstract sendReply(context: MessageContext, text: string): Promise<void>;
+  public async sendTyping?(context: MessageContext): Promise<void> {
+    // Default implementation does nothing
+  }
 }

@@ -77,4 +77,15 @@ export class DiscordAdapter extends BaseAdapter {
       }
     }
   }
+
+  public override async sendTyping(context: MessageContext): Promise<void> {
+    try {
+      const channel = await this.client.channels.fetch(context.channelId);
+      if (channel && 'sendTyping' in channel && typeof channel.sendTyping === 'function') {
+        await (channel as any).sendTyping();
+      }
+    } catch (err) {
+      logger.error({ err, context }, 'Failed to send Discord typing indicator');
+    }
+  }
 }

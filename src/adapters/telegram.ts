@@ -52,4 +52,12 @@ export class TelegramAdapter extends BaseAdapter {
       }
     }
   }
+
+  public override async sendTyping(context: MessageContext): Promise<void> {
+    try {
+      await this.bot.telegram.sendChatAction(context.channelId, 'typing');
+    } catch (err) {
+      logger.error({ err, context }, 'Failed to send Telegram typing indicator');
+    }
+  }
 }

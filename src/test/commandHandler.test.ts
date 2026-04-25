@@ -172,6 +172,7 @@ describe('CommandHandler', () => {
   it('should include token usage in the response', async () => {
     const context: MessageContext = { platform: 'mock', channelId: 'c1', userId: 'u1', text: 'hello' };
     mockSessionManager.getSessionForContext.mockResolvedValue('s1');
+    mockSessionManager.getUsage.mockReturnValue({ used: 150, size: 1000000 });
     mockClient.prompt.mockResolvedValue({
       text: 'Hi there!',
       stop_reason: 'end_turn',
@@ -190,7 +191,7 @@ describe('CommandHandler', () => {
     );
     expect(mockAdapter.sendReply).toHaveBeenCalledWith(
       context,
-      expect.stringContaining('150/ 100/ 50 usage')
+      expect.stringContaining('150 tokens used')
     );
   });
 });
