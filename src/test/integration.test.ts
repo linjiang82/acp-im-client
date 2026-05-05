@@ -81,6 +81,7 @@ describe('Integration: Session Turn', () => {
     const thoughtBuffers = new Map<string, string>();
     const pendingPermissions = new Map<string, any>();
     const activeTurnContexts = new Map<string, any>();
+    const pendingTerminalInputs = new Map<string, boolean>();
     
     client.on('notification:session/update', (params) => {
       if (params.update.sessionUpdate === 'agent_message_chunk') {
@@ -101,7 +102,8 @@ describe('Integration: Session Turn', () => {
       messageBuffers,
       thoughtBuffers,
       pendingPermissions,
-      activeTurnContexts
+      activeTurnContexts,
+      pendingTerminalInputs
     );
 
     const context = {
@@ -128,6 +130,7 @@ describe('Integration: Session Turn', () => {
     const thoughtBuffers = new Map<string, string>();
     const pendingPermissions = new Map<string, any>();
     const activeTurnContexts = new Map<string, any>();
+    const pendingTerminalInputs = new Map<string, boolean>();
 
     // Handle the notification manually since we are not using index.ts's listener here
     client.on('notification:session/update', (params) => {
@@ -152,7 +155,8 @@ describe('Integration: Session Turn', () => {
       messageBuffers,
       thoughtBuffers,
       pendingPermissions,
-      activeTurnContexts
+      activeTurnContexts,
+      pendingTerminalInputs
     );
 
     // 1. Simulate usage update notification

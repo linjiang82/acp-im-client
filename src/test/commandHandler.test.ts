@@ -30,11 +30,13 @@ describe('CommandHandler', () => {
   const thoughtBuffers = new Map<string, string>();
   const pendingPermissions = new Map<string, any>();
   const activeTurnContexts = new Map<string, MessageContext>();
+  const pendingTerminalInputs = new Map<string, boolean>();
 
   beforeEach(() => {
     mockClient = {
       prompt: vi.fn(),
       respond: vi.fn(),
+      notify: vi.fn(),
     };
     mockSessionManager = {
       getSessionForContext: vi.fn(),
@@ -55,7 +57,8 @@ describe('CommandHandler', () => {
       messageBuffers,
       thoughtBuffers,
       pendingPermissions,
-      activeTurnContexts
+      activeTurnContexts,
+      pendingTerminalInputs
     );
 
     vi.clearAllMocks();
@@ -63,6 +66,7 @@ describe('CommandHandler', () => {
     thoughtBuffers.clear();
     pendingPermissions.clear();
     activeTurnContexts.clear();
+    pendingTerminalInputs.clear();
   });
 
   it('should handle /session ls command', async () => {

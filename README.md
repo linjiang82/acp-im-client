@@ -7,6 +7,7 @@ A middleware bridge that connects popular Instant Messaging (IM) platforms with 
 - **Multi-Platform Support**: Integrated with Slack, Discord, Telegram, and Microsoft Teams.
 - **Real-time Streaming**: Supports streaming of assistant responses and internal **thought processes** (reasoning).
 - **Interactive Tool Calls**: Handles interactive permissions (Allow Once, Always Allow, Reject) for tool executions (e.g., shell commands, file edits).
+- **Interactive Shell Input**: Automatically detects when a bash command requires confirmation (e.g., `[Y/n]`) and allows you to respond directly from the chat.
 - **Live Shell Output**: Forwards standard output and terminal logs from the agent directly to the chat.
 - **Resilient Protocol**: Robust JSON-RPC 2.0 implementation with resilient stream parsing.
 - **Smart Message Splitting**: Automatically handles platform-specific character limits (e.g., Discord's 2000-character limit).

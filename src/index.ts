@@ -78,6 +78,9 @@ async function main() {
   // Pending permissions: sessionId -> { requestId, options, context }
   const pendingPermissions = new Map<string, { id: string | number, options: any[], context: MessageContext }>();
 
+  // Pending terminal input: sessionId -> boolean
+  const pendingTerminalInputs = new Map<string, boolean>();
+
   // Track if a turn is active (to stream terminal output)
   const activeTurnContexts = new Map<string, MessageContext>();
 
@@ -148,9 +151,17 @@ async function main() {
     if (context) {
       const adapter = adapters.find(a => a.constructor.name.toLowerCase().includes(context.platform.toLowerCase()));
       if (adapter) {
-        // Only stream if it's significant or after a delay to avoid spamming
-        // For now, just forward it.
-        await adapter.sendReply(context, `\`\`\`\n${output}\n\`\`\``);
+        // Detect common confirmation prompts
+        const promptRegex = /(?:\[[Yy]\/[Nn]\]|\([Yy]\/[Nn]\)|[Yy]es\/[Nn]o|\b[yY]\/[nN]\b)/;
+        let finalOutput = `\`\`\`\n${output}\n\`\`\``;
+        
+        if (promptRegex.test(output)) {
+          logger.info({ sessionId }, 'Detected terminal confirmation prompt');
+          pendingTerminalInputs.set(sessionId, true);
+          finalOutput += '\n\n_Terminal is waiting for input. Reply with your response._';
+        }
+
+        await adapter.sendReply(context, finalOutput);
       }
     }
   });
@@ -193,7 +204,8 @@ async function main() {
     messageBuffers,
     thoughtBuffers,
     pendingPermissions,
-    activeTurnContexts
+    activeTurnContexts,
+    pendingTerminalInputs
   );
 
   const handleMessage = commandHandler.handleMessage;

@@ -22,6 +22,7 @@ export class CommandHandler {
   private pendingPermissions: Map<string, { id: string | number, options: any[], context: MessageContext }>;
   private activeTurnContexts: Map<string, MessageContext>;
   private pendingDirCreations: Map<string, string>;
+  private pendingTerminalInputs: Map<string, boolean>;
 
   constructor(
     client: AcpClient,
@@ -30,7 +31,8 @@ export class CommandHandler {
     messageBuffers: Map<string, string>,
     thoughtBuffers: Map<string, string>,
     pendingPermissions: Map<string, { id: string | number, options: any[], context: MessageContext }>,
-    activeTurnContexts: Map<string, MessageContext>
+    activeTurnContexts: Map<string, MessageContext>,
+    pendingTerminalInputs: Map<string, boolean>
   ) {
     this.client = client;
     this.sessionManager = sessionManager;
@@ -40,6 +42,7 @@ export class CommandHandler {
     this.pendingPermissions = pendingPermissions;
     this.activeTurnContexts = activeTurnContexts;
     this.pendingDirCreations = new Map();
+    this.pendingTerminalInputs = pendingTerminalInputs;
   }
 
   public handleMessage = async (context: MessageContext) => {
@@ -194,6 +197,19 @@ _No usage data available yet. Send a message first._`);
     try {
       const sessionId = await this.sessionManager.getSessionForContext(context);
       logger.debug(`[TURN] Using ACP Session: ${sessionId}`);
+
+      // Check for pending terminal input
+      if (this.pendingTerminalInputs.get(sessionId)) {
+        this.pendingTerminalInputs.delete(sessionId);
+        const text = context.text.trim();
+        logger.info({ sessionId, text }, '[TURN] Forwarding user input to terminal');
+        this.client.notify('terminal/input', { sessionId, input: text + '\n' });
+        
+        if (adapter) {
+          await adapter.sendReply(context, `_Sent \`${text}\` to terminal._`);
+        }
+        return;
+      }
 
       // Check for pending permission
       const pending = this.pendingPermissions.get(sessionId);
